@@ -17,9 +17,7 @@ warnings.filterwarnings('ignore')
 # Create results directory
 os.makedirs('../results', exist_ok=True)
 
-# ---------------------------------------------------------
-# 1. LOAD DATA AND PARSE SUBJECT IDs
-# ---------------------------------------------------------
+
 FILENAME = '../data.csv'
 
 print("=" * 70)
@@ -32,15 +30,13 @@ print(f"   Loaded dataset with shape: {df.shape}")
 
 # Extract components
 ids = df.iloc[:, 0]
-X_raw = df.iloc[:, 1:-1].values  # 178 time-series features
-y = df.iloc[:, -1].values  # Labels (1-5)
+X_raw = df.iloc[:, 1:-1].values
+y = df.iloc[:, -1].values
 
-print(f"   ? Total samples: {len(y)}")
-print(f"   ? Features per sample: {X_raw.shape[1]}")
+print(f"   Total samples: {len(y)}")
+print(f"   Features per sample: {X_raw.shape[1]}")
 
-# ---------------------------------------------------------
-# 2. PARSE SUBJECT IDs
-# ---------------------------------------------------------
+
 def parse_subject_id(uid):
     """Extract suffix from ID (e.g., X21.V1.791 -> 791)"""
     try:
@@ -55,8 +51,6 @@ def parse_subject_id(uid):
 print("\nParsing Subject IDs...")
 subject_suffixes = ids.apply(parse_subject_id)
 
-# Create unique subject identifier: (Class, Suffix)
-# This ensures subjects are unique across classes
 subject_ids = y * 10000 + subject_suffixes
 
 print(f"   Identified {len(np.unique(subject_ids))} unique subjects")
@@ -71,28 +65,19 @@ df_with_subjects = pd.DataFrame({
 for i in range(X_raw.shape[1]):
     df_with_subjects[f'X{i+1}'] = X_raw[:, i]
 
-# ---------------------------------------------------------
-# 3. SUBJECT-WISE FEATURE EXTRACTION
-# ---------------------------------------------------------
+
 print("\nExtracting Subject-Wise Features...")
 print("   Features to extract:")
-print("   ? Statistical: Mean, Std, Min, Max, Median, Skewness, Kurtosis")
-print("   ? Frequency: Delta, Theta, Alpha, Beta, Gamma band powers")
+print("   Statistical: Mean, Std, Min, Max, Median, Skewness, Kurtosis")
+print("   Frequency: Delta, Theta, Alpha, Beta, Gamma band powers")
 
 fs = 173.6  # Sampling frequency
 
 def extract_subject_features(subject_data):
     """
-    Extract optimized feature set for a single subject (~25 features)
+    Extract optimized feature set for a single subject.
     Input: DataFrame with all time segments for one subject
     Output: Dictionary of aggregated features
-    
-    Features extracted:
-    1. Core statistical features (8 features)
-    2. Frequency band powers using Welch's method on SCALED data (10 features)
-    3. Temporal features (3 features)
-    4. Signal energy (2 features)
-    Total: ~23-25 features
     """
     features = {}
     
@@ -102,18 +87,14 @@ def extract_subject_features(subject_data):
     # Extract raw signals for this subject (all segments)
     raw_signals = subject_data[time_series_cols].values  # Shape: (num_segments, 178)
     
-    # ==========================================
-    # STEP 1: SCALE DATA
-    # ==========================================
+
     scaler_local = StandardScaler()
     scaled_signals = scaler_local.fit_transform(raw_signals.T).T  # Scale across time points
     
     # Aggregate all segments into one long time series
     all_values_raw = raw_signals.flatten()
     
-    # ==========================================
-    # STATISTICAL FEATURES (8 features - most important ones)
-    # ==========================================
+
     features['mean'] = np.mean(all_values_raw)
     features['std'] = np.std(all_values_raw)
     features['min'] = np.min(all_values_raw)
@@ -123,10 +104,7 @@ def extract_subject_features(subject_data):
     features['skewness'] = stats.skew(all_values_raw)
     features['kurtosis'] = stats.kurtosis(all_values_raw)
     
-    # ==========================================
-    # FREQUENCY DOMAIN FEATURES (10 features)
-    # ==========================================
-    # Extract frequency band powers from SCALED data using Welch's method
+
     
     band_powers = {'Delta': [], 'Theta': [], 'Alpha': [], 'Beta': [], 'Gamma': []}
     
@@ -161,13 +139,11 @@ def extract_subject_features(subject_data):
         features[f'{band_name}_mean'] = np.mean(band_powers[band_name])
         features[f'{band_name}_std'] = np.std(band_powers[band_name])
     
-    # ==========================================
-    # TEMPORAL FEATURES (3 features)
-    # ==========================================
-    # Number of segments for this subject
+
+
     features['num_segments'] = len(subject_data)
     
-    # Zero crossing rate (mean across segments)
+
     zero_crossings = []
     for segment_idx in range(raw_signals.shape[0]):
         signal = raw_signals[segment_idx, :]
@@ -175,9 +151,7 @@ def extract_subject_features(subject_data):
         zero_crossings.append(zc)
     features['zero_crossing_rate'] = np.mean(zero_crossings)
     
-    # ==========================================
-    # ENERGY FEATURES (2 features)
-    # ==========================================
+
     energies = []
     for segment_idx in range(raw_signals.shape[0]):
         signal = raw_signals[segment_idx, :]
@@ -215,9 +189,7 @@ output_file = 'subject_wise_features.csv'
 df_features.to_csv(output_file, index=False)
 print(f"\nSaved features to '{output_file}'")
 
-# ---------------------------------------------------------
-# 4. PREPARE DATA FOR ML
-# ---------------------------------------------------------
+
 print("\nPreparing Data for Machine Learning...")
 
 # Separate features and labels
@@ -225,15 +197,13 @@ X = df_features.drop(['subject_id', 'label'], axis=1).values
 y = df_features['label'].values
 groups = df_features['subject_id'].values
 
-print(f"   ? Feature matrix shape: {X.shape}")
-print(f"   ? Label distribution:")
+print(f"   Feature matrix shape: {X.shape}")
+print(f"   Label distribution:")
 for label in sorted(np.unique(y)):
     count = np.sum(y == label)
     print(f"      Class {label}: {count} subjects ({count/len(y)*100:.1f}%)")
 
-# ---------------------------------------------------------
-# 5. SUBJECT-AWARE TRAIN/TEST SPLIT
-# ---------------------------------------------------------
+
 print("\nPerforming Subject-Aware Split...")
 
 gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
@@ -251,18 +221,14 @@ test_subjects = set(groups[test_idx])
 overlap = train_subjects.intersection(test_subjects)
 print(f"   Subject overlap: {len(overlap)} (should be 0)")
 
-# ---------------------------------------------------------
-# 6. FEATURE SCALING
-# ---------------------------------------------------------
+
 print("\nScaling Features...")
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled = scaler.transform(X_test)
 print("   Features standardized")
 
-# ---------------------------------------------------------
-# 7. TRAIN MULTIPLE ML MODELS
-# ---------------------------------------------------------
+
 print("\n" + "=" * 70)
 print("TRAINING MACHINE LEARNING MODELS")
 print("=" * 70)
@@ -303,9 +269,7 @@ for model_name, model in models.items():
         'y_pred': y_pred_test
     }
 
-# ---------------------------------------------------------
-# 8. DETAILED EVALUATION OF BEST MODEL
-# ---------------------------------------------------------
+
 print("\n" + "=" * 70)
 print("MODEL COMPARISON")
 print("=" * 70)
@@ -343,8 +307,8 @@ print(classification_report(y_test, best_result['y_pred'], target_names=target_n
 
 print("\nConfusion Matrix:")
 cm = confusion_matrix(y_test, best_result['y_pred'])
-print("\nPredicted ?")
-print("Actual ?")
+print("\nPredicted Label")
+print("Actual Label")
 print(f"{'':>15}", end='')
 for i in range(1, 6):
     print(f"Class {i:>3}", end='  ')
@@ -355,9 +319,7 @@ for i, row in enumerate(cm):
         print(f"{val:>7}", end='  ')
     print()
 
-# ---------------------------------------------------------
-# 9. FEATURE IMPORTANCE (for tree-based models)
-# ---------------------------------------------------------
+
 if best_model_name in ['Random Forest', 'Gradient Boosting']:
     print("\n" + "=" * 70)
     print("TOP 10 MOST IMPORTANT FEATURES")
@@ -374,9 +336,7 @@ if best_model_name in ['Random Forest', 'Gradient Boosting']:
     for rank, idx in enumerate(indices, 1):
         print(f"{rank:<6} {feature_names[idx]:<25} {importances[idx]:.6f}")
 
-# ---------------------------------------------------------
-# 10. GENERATE VISUALIZATIONS
-# ---------------------------------------------------------
+
 print("\n" + "=" * 70)
 print("GENERATING VISUALIZATIONS")
 print("=" * 70)
@@ -388,7 +348,7 @@ sns.set_palette("husl")
 # Create figure with subplots
 fig = plt.figure(figsize=(20, 12))
 
-# 1. CONFUSION MATRIX HEATMAP
+
 ax1 = plt.subplot(2, 3, 1)
 cm_best = confusion_matrix(y_test, best_result['y_pred'])
 sns.heatmap(cm_best, annot=True, fmt='d', cmap='Blues', 
@@ -399,7 +359,7 @@ ax1.set_title(f'Confusion Matrix - {best_model_name}', fontsize=14, fontweight='
 ax1.set_ylabel('True Label', fontsize=12)
 ax1.set_xlabel('Predicted Label', fontsize=12)
 
-# 2. MODEL COMPARISON - ACCURACY
+
 ax2 = plt.subplot(2, 3, 2)
 model_names = [name for name, _ in sorted_results]
 train_accs = [res['train_acc']*100 for _, res in sorted_results]
@@ -427,7 +387,7 @@ for rect in rects1 + rects2:
                 textcoords="offset points",
                 ha='center', va='bottom', fontsize=9)
 
-# 3. CLASS DISTRIBUTION
+
 ax3 = plt.subplot(2, 3, 3)
 class_labels = ['Seizure\n(1)', 'Tumor\n(2)', 'Healthy\n(3)', 'Eyes Closed\n(4)', 'Eyes Open\n(5)']
 class_counts = [np.sum(y == i) for i in range(1, 6)]
@@ -441,7 +401,7 @@ for autotext in autotexts:
     autotext.set_fontsize(10)
 ax3.set_title('Class Distribution in Dataset', fontsize=14, fontweight='bold')
 
-# 4. FEATURE IMPORTANCE (if available)
+
 if best_model_name in ['Random Forest', 'Gradient Boosting']:
     ax4 = plt.subplot(2, 3, 4)
     feature_names = [col for col in df_features.columns if col not in ['subject_id', 'label']]
@@ -466,7 +426,7 @@ else:
              ha='center', va='center', fontsize=12, transform=ax4.transAxes)
     ax4.axis('off')
 
-# 5. PER-CLASS PERFORMANCE (F1-Score)
+
 ax5 = plt.subplot(2, 3, 5)
 
 f1_scores = []
@@ -500,7 +460,7 @@ ax5.legend()
 ax5.grid(axis='y', alpha=0.3)
 ax5.set_ylim([0, 105])
 
-# 6. OVERFITTING ANALYSIS
+
 ax6 = plt.subplot(2, 3, 6)
 model_names_full = list(results.keys())
 train_accs_full = [results[name]['train_acc']*100 for name in model_names_full]
@@ -523,10 +483,10 @@ ax6.grid(axis='x', alpha=0.3)
 
 plt.tight_layout()
 plt.savefig('../results/ml_evaluation_results.png', dpi=300, bbox_inches='tight')
-print("   ? Saved: ../results/ml_evaluation_results.png")
+print("   Saved: ../results/ml_evaluation_results.png")
 plt.close()
 
-# Additional: Individual confusion matrices for all models
+
 fig2, axes = plt.subplots(1, 3, figsize=(18, 5))
 
 for idx, (model_name, res) in enumerate(sorted_results):
@@ -542,7 +502,7 @@ for idx, (model_name, res) in enumerate(sorted_results):
 
 plt.tight_layout()
 plt.savefig('../results/ml_all_confusion_matrices.png', dpi=300, bbox_inches='tight')
-print("   ? Saved: ../results/ml_all_confusion_matrices.png")
+print("   Saved: ../results/ml_all_confusion_matrices.png")
 plt.close()
 
 print("\n" + "=" * 70)
