@@ -72,7 +72,7 @@ BDPA_BSAI5A_192_216_232/
    
    The original EEG dataset should be placed in the project root as `data.csv`. 
    
-   **Dataset Source:** [Epileptic Seizure Recognition Dataset](https://archive.ics.uci.edu/ml/datasets/Epileptic+Seizure+Recognition)
+   **Dataset Source:** [Epileptic Seizure Recognition Dataset](https://www.kaggle.com/datasets/harunshimanto/epileptic-seizure-recognition)
    
    > **Note:** Due to size constraints, the raw dataset (`data.csv`) is not included in this repository. Please download it from the source above.
 
@@ -217,9 +217,9 @@ Air University, 2025
 
 ## 👥 Team Members
 
-- **192** - [Role/Contribution]
-- **216** - [Role/Contribution]
-- **232** - [Role/Contribution]
+- **231192** - Muhammad Maaz Akram
+- **231216** - Muhammad Abubakar
+- **231232** - Kamran Ahmed
 
 ---
 
@@ -232,7 +232,7 @@ This project is submitted as part of academic coursework at Air University.
 ## 🙏 Acknowledgments
 
 - Dataset: UCI Machine Learning Repository - Epileptic Seizure Recognition
-- Course Instructor: [Professor Name]
+- Course Instructor: Dr. Abdul Haleem Butt
 - Air University, Department of Biomedical Engineering
 
 ---
