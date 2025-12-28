@@ -6,8 +6,13 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GroupShuffleSplit
-from sklearn.metrics import classification_report, accuracy_score
+from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, f1_score, precision_score, recall_score
 import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+
+# Create results directory
+os.makedirs('../results', exist_ok=True)
 
 # Check for GPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -16,7 +21,7 @@ print(f"🚀 Using device: {device}")
 # ---------------------------------------------------------
 # 1. DATA LOADING & SUBJECT-AWARE SPLITTING
 # ---------------------------------------------------------
-FILENAME = 'data.csv'
+FILENAME = '../data.csv'
 
 def load_and_split_data(filename):
     print(f"📂 Loading {filename}...")
@@ -186,13 +191,17 @@ model = EEGTransformer(input_dim=178, num_classes=5, patch_size=20)
 model.to(device)
 
 # ---------------------------------------------------------
-# 5. TRAINING LOOP
+# 5. TRAINING LOOP WITH HISTORY TRACKING
 # ---------------------------------------------------------
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 epochs = 15
 
-print("\n🔥 Starting Training...")
+# Track history for plotting
+train_losses = []
+train_accuracies = []
+
+print("\\n🔥 Starting Training...")
 for epoch in range(epochs):
     model.train()
     running_loss = 0.0
@@ -212,14 +221,20 @@ for epoch in range(epochs):
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
-        
+    
+    epoch_loss = running_loss/len(train_loader)
+    epoch_acc = 100 * correct / total
+    
+    train_losses.append(epoch_loss)
+    train_accuracies.append(epoch_acc)
+    
     if (epoch+1) % 1 == 0:
-        print(f"Epoch {epoch+1}/{epochs} | Loss: {running_loss/len(train_loader):.4f} | Acc: {100 * correct / total:.2f}%")
+        print(f"Epoch {epoch+1}/{epochs} | Loss: {epoch_loss:.4f} | Acc: {epoch_acc:.2f}%")
 
 # ---------------------------------------------------------
 # 6. EVALUATION
 # ---------------------------------------------------------
-print("\n🧪 Evaluating on Test Set (Subject-Disjoint)...")
+print("\\n🧪 Evaluating on Test Set (Subject-Disjoint)...")
 model.eval()
 all_preds = []
 all_labels = []
@@ -237,6 +252,180 @@ with torch.no_grad():
 # Original Labels: 1=Seizure, 2-5=Non-Seizure
 target_names = ['Seizure (1)', 'Tumor Area (2)', 'Healthy Area (3)', 'Eyes Closed (4)', 'Eyes Open (5)']
 
-print("\n📊 Classification Report:")
+print("\\n📊 Classification Report:")
 print(classification_report(all_labels, all_preds, target_names=target_names, digits=4))
-print(f"Final Accuracy: {accuracy_score(all_labels, all_preds)*100:.2f}%")
+final_accuracy = accuracy_score(all_labels, all_preds)*100
+print(f"Final Accuracy: {final_accuracy:.2f}%")
+
+# ---------------------------------------------------------
+# 7. GENERATE VISUALIZATIONS
+# ---------------------------------------------------------
+print("\\n" + "=" * 70)
+print("GENERATING VISUALIZATIONS")
+print("=" * 70)
+
+# Set style
+plt.style.use('seaborn-v0_8-darkgrid')
+sns.set_palette("husl")
+
+# Create figure with subplots
+fig = plt.figure(figsize=(18, 12))
+
+# 1. TRAINING LOSS CURVE
+ax1 = plt.subplot(2, 3, 1)
+epochs_range = range(1, epochs + 1)
+ax1.plot(epochs_range, train_losses, 'b-o', linewidth=2, markersize=6, label='Training Loss')
+ax1.set_xlabel('Epoch', fontsize=12)
+ax1.set_ylabel('Loss', fontsize=12)
+ax1.set_title('Training Loss Over Epochs', fontsize=14, fontweight='bold')
+ax1.grid(True, alpha=0.3)
+ax1.legend()
+
+# 2. TRAINING ACCURACY CURVE
+ax2 = plt.subplot(2, 3, 2)
+ax2.plot(epochs_range, train_accuracies, 'g-o', linewidth=2, markersize=6, label='Training Accuracy')
+ax2.set_xlabel('Epoch', fontsize=12)
+ax2.set_ylabel('Accuracy (%)', fontsize=12)
+ax2.set_title('Training Accuracy Over Epochs', fontsize=14, fontweight='bold')
+ax2.grid(True, alpha=0.3)
+ax2.legend()
+ax2.set_ylim([0, 105])
+
+# 3. CONFUSION MATRIX
+ax3 = plt.subplot(2, 3, 3)
+cm = confusion_matrix(all_labels, all_preds)
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax3,
+            xticklabels=['Seizure', 'Tumor', 'Healthy', 'Eyes Closed', 'Eyes Open'],
+            yticklabels=['Seizure', 'Tumor', 'Healthy', 'Eyes Closed', 'Eyes Open'],
+            cbar_kws={'label': 'Count'})
+ax3.set_title(f'Confusion Matrix\\nAccuracy: {final_accuracy:.2f}%', fontsize=14, fontweight='bold')
+ax3.set_ylabel('True Label', fontsize=12)
+ax3.set_xlabel('Predicted Label', fontsize=12)
+
+# 4. PER-CLASS PERFORMANCE
+ax4 = plt.subplot(2, 3, 4)
+
+f1_scores = []
+precisions = []
+recalls = []
+
+for class_label in range(5):
+    y_test_binary = (np.array(all_labels) == class_label).astype(int)
+    y_pred_binary = (np.array(all_preds) == class_label).astype(int)
+    
+    f1 = f1_score(y_test_binary, y_pred_binary, zero_division=0)
+    prec = precision_score(y_test_binary, y_pred_binary, zero_division=0)
+    rec = recall_score(y_test_binary, y_pred_binary, zero_division=0)
+    
+    f1_scores.append(f1 * 100)
+    precisions.append(prec * 100)
+    recalls.append(rec * 100)
+
+x = np.arange(5)
+width = 0.25
+
+rects1 = ax4.bar(x - width, precisions, width, label='Precision', alpha=0.8)
+rects2 = ax4.bar(x, recalls, width, label='Recall', alpha=0.8)
+rects3 = ax4.bar(x + width, f1_scores, width, label='F1-Score', alpha=0.8)
+
+ax4.set_ylabel('Score (%)', fontsize=12)
+ax4.set_title('Per-Class Performance Metrics', fontsize=14, fontweight='bold')
+ax4.set_xticks(x)
+ax4.set_xticklabels(['Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5'])
+ax4.legend()
+ax4.grid(axis='y', alpha=0.3)
+ax4.set_ylim([0, 105])
+
+# 5. CLASS-WISE ACCURACY
+ax5 = plt.subplot(2, 3, 5)
+class_accuracies = []
+for class_label in range(5):
+    class_mask = np.array(all_labels) == class_label
+    if np.sum(class_mask) > 0:
+        class_acc = np.sum((np.array(all_preds)[class_mask] == class_label)) / np.sum(class_mask) * 100
+        class_accuracies.append(class_acc)
+    else:
+        class_accuracies.append(0)
+
+colors = sns.color_palette("husl", 5)
+bars = ax5.bar(range(5), class_accuracies, alpha=0.8, color=colors)
+ax5.set_ylabel('Accuracy (%)', fontsize=12)
+ax5.set_title('Per-Class Accuracy', fontsize=14, fontweight='bold')
+ax5.set_xticks(range(5))
+ax5.set_xticklabels(['Seizure', 'Tumor', 'Healthy', 'Eyes\\nClosed', 'Eyes\\nOpen'])
+ax5.grid(axis='y', alpha=0.3)
+ax5.set_ylim([0, 105])
+
+# Add value labels on bars
+for bar in bars:
+    height = bar.get_height()
+    ax5.annotate(f'{height:.1f}%',
+                xy=(bar.get_x() + bar.get_width() / 2, height),
+                xytext=(0, 3),
+                textcoords="offset points",
+                ha='center', va='bottom', fontsize=10)
+
+# 6. TRAINING PROGRESS SUMMARY
+ax6 = plt.subplot(2, 3, 6)
+ax6.axis('off')
+
+summary_text = f"""
+TRANSFORMER MODEL SUMMARY
+
+Architecture:
+• Input Dimension: 178
+• Patch Size: 20
+• Embedding Dimension: 64
+• Attention Heads: 4
+• Transformer Layers: 2
+• Output Classes: 5
+
+Training:
+• Epochs: {epochs}
+• Batch Size: {batch_size}
+• Optimizer: Adam (lr=0.001)
+• Loss Function: CrossEntropy
+
+Results:
+• Final Training Acc: {train_accuracies[-1]:.2f}%
+• Test Accuracy: {final_accuracy:.2f}%
+• Device: {device}
+
+Subject-Aware Split:
+• Train Samples: {len(X_train)}
+• Test Samples: {len(X_test)}
+• No subject overlap ✓
+"""
+
+ax6.text(0.1, 0.5, summary_text, fontsize=11, family='monospace',
+         verticalalignment='center', transform=ax6.transAxes,
+         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
+
+plt.tight_layout()
+plt.savefig('../results/dl_evaluation_results.png', dpi=300, bbox_inches='tight')
+print("   ✓ Saved: ../results/dl_evaluation_results.png")
+plt.close()
+
+# Additional: Detailed confusion matrix
+fig2, ax = plt.subplots(figsize=(10, 8))
+sns.heatmap(cm, annot=True, fmt='d', cmap='YlGnBu', ax=ax,
+            xticklabels=['Seizure (1)', 'Tumor (2)', 'Healthy (3)', 'Eyes Closed (4)', 'Eyes Open (5)'],
+            yticklabels=['Seizure (1)', 'Tumor (2)', 'Healthy (3)', 'Eyes Closed (4)', 'Eyes Open (5)'],
+            cbar_kws={'label': 'Number of Samples'})
+ax.set_title(f'Detailed Confusion Matrix - EEG Transformer\\nTest Accuracy: {final_accuracy:.2f}%', 
+             fontsize=16, fontweight='bold', pad=20)
+ax.set_ylabel('True Label', fontsize=14)
+ax.set_xlabel('Predicted Label', fontsize=14)
+
+plt.tight_layout()
+plt.savefig('../results/dl_confusion_matrix_detailed.png', dpi=300, bbox_inches='tight')
+print("   ✓ Saved: ../results/dl_confusion_matrix_detailed.png")
+plt.close()
+
+print("\\n" + "=" * 70)
+print("ANALYSIS COMPLETE")
+print("=" * 70)
+print(f"\\nOutput files:")
+print(f"   -> ../results/dl_evaluation_results.png")
+print(f"   -> ../results/dl_confusion_matrix_detailed.png")
+print(f"\\nFinal Test Accuracy: {final_accuracy:.2f}%")

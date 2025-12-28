@@ -27,6 +27,7 @@ The goal is to classify EEG signals into 5 categories:
 ```
 BDPA_BSAI5A_192_216_232/
 ├── README.md                          # This file
+├── PROJECT_OVERVIEW.md                # Detailed technical overview
 ├── requirements.txt                   # Python dependencies
 ├── .gitignore                         # Git ignore rules
 │
@@ -40,9 +41,16 @@ BDPA_BSAI5A_192_216_232/
 │   ├── eeg_foundation_model.py        # Transformer-based deep learning model
 │   └── verify_split.py                # Data split verification utility
 │
-└── data/
-    ├── processed_eeg_features.csv     # Extracted EEG features
-    └── subject_wise_features.csv      # Subject-aggregated features
+├── data/
+│   ├── README.md                      # Dataset download instructions
+│   ├── processed_eeg_features.csv     # Extracted EEG features
+│   └── subject_wise_features.csv      # Subject-aggregated features
+│
+└── results/
+    ├── ml_evaluation_results.png      # ML 6-panel evaluation dashboard
+    ├── ml_all_confusion_matrices.png  # ML confusion matrices comparison
+    ├── dl_evaluation_results.png      # DL 6-panel evaluation dashboard
+    └── dl_confusion_matrix_detailed.png  # DL detailed confusion matrix
 ```
 
 ---
@@ -105,6 +113,8 @@ python subject_wise_ml.py
 
 **Output:**
 - `subject_wise_features.csv` - Extracted features for all subjects
+- `results/ml_evaluation_results.png` - 6-panel evaluation dashboard
+- `results/ml_all_confusion_matrices.png` - Confusion matrices for all models
 - Console output with model performance metrics
 
 ---
@@ -138,6 +148,11 @@ python eeg_foundation_model.py
 - Transformer layers: 2
 - Output: 5 classes
 
+**Output:**
+- `results/dl_evaluation_results.png` - 6-panel evaluation dashboard
+- `results/dl_confusion_matrix_detailed.png` - Detailed confusion matrix
+- Console output with training progress and metrics
+
 ---
 
 ### 3. Data Verification
@@ -153,17 +168,22 @@ python verify_split.py
 
 ## 📊 Results Summary
 
-Detailed results are available in [`docs/Project_Report.md`](docs/Project_Report.md).
+Detailed results are available in [`docs/Project_Report.md`](docs/Project_Report.md) and [`PROJECT_OVERVIEW.md`](PROJECT_OVERVIEW.md).
+
+**Visual Results:** All evaluation graphs are available in the [`results/`](results/) folder.
 
 ### Machine Learning Performance
 - **Best Model:** Random Forest
-- **Test Accuracy:** ~95-97%
+- **Test Accuracy:** 87.00%
 - **Key Features:** Frequency band powers (Alpha, Beta) and statistical moments
+- **Visualizations:** 6-panel dashboard, confusion matrices, feature importance
 
 ### Deep Learning Performance
 - **Model:** Patch-based Transformer
-- **Test Accuracy:** ~92-94%
+- **Test Accuracy:** 73.57%
+- **Seizure Detection:** 96%+ (excellent)
 - **Advantages:** End-to-end learning, no manual feature engineering
+- **Visualizations:** Training curves, confusion matrix, per-class performance
 
 ---
 
@@ -186,6 +206,7 @@ Both approaches ensure **zero subject overlap** between training and test sets t
 
 ## 📚 Documentation
 
+- **[Project Overview](PROJECT_OVERVIEW.md)** - Detailed technical explanation of preprocessing, feature extraction, training, and evaluation
 - **[Project Proposal](docs/Project_Proposal.md)** - Initial project plan and objectives
 - **[Project Report](docs/Project_Report.md)** - Comprehensive analysis, methodology, and results
 - **[Dataset Overview](docs/Dataset_Overview.txt)** - Dataset description and preprocessing notes
@@ -197,7 +218,7 @@ Both approaches ensure **zero subject overlap** between training and test sets t
 - **Python 3.8+**
 - **Machine Learning:** scikit-learn, pandas, numpy, scipy
 - **Deep Learning:** PyTorch
-- **Visualization:** matplotlib
+- **Visualization:** matplotlib, seaborn
 - **Data Processing:** StandardScaler, GroupShuffleSplit
 
 ---

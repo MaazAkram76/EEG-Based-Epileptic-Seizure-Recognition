@@ -12,6 +12,7 @@ torchvision>=0.11.0
 
 # Visualization
 matplotlib>=3.4.0
+seaborn>=0.11.0
 
 # Optional: For GPU support (CUDA)
 # Install PyTorch with CUDA from: https://pytorch.org/get-started/locally/
